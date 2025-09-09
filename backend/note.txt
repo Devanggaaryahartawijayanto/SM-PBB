@@ -1,0 +1,11 @@
+Linux/Mac
+rm db.sqlite3
+rm -rf alembic/versions/
+
+Windows
+rmdir /s /q alembic\versions
+del db.sqlite3
+
+alembic revision --autogenerate -m "Init"
+alembic upgrade head
+uv run fastapi dev
