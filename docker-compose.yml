@@ -9,9 +9,8 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
     ports:
-      - "80:80"      # Frontend
-      - "8000:8000"  # Backend
-      - "8080:8080"  # Traefik dashboard
+      - "80:80"
+      - "8081:8080"  # Traefik dashboard (Port diubah ke 8081 agar tidak konflik dengan Adminer)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
@@ -23,6 +22,10 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: backend
+    # --- TAMBAHAN DARI SAYA: Membuka port agar bisa diakses langsung dari localhost:8000 ---
+    ports:
+      - "8000:8000"
+    # --- SELESAI TAMBAHAN ---
     env_file:
       - ./backend/.env
     labels:
@@ -32,6 +35,10 @@ services:
       - "traefik.http.services.backend.loadbalancer.server.port=8000"
     networks:
       - app-network
+    # --- TAMBAHAN DARI SAYA: Memastikan backend berjalan setelah database siap ---
+    depends_on:
+      - db
+    # --- SELESAI TAMBAHAN ---
 
   # Frontend service
   frontend:
@@ -39,8 +46,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: "https://pbb.tabanankab.go.id/api"
+        # --- PERUBAHAN DARI SAYA: Mengganti URL API ke versi lokal agar frontend terhubung ke backend lokal ---
+        NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000/api"
+        # --- SELESAI PERUBAHAN ---
     container_name: frontend
+    # --- TAMBAHAN DARI SAYA: Membuka port agar bisa diakses langsung dari localhost:3000 ---
+    ports:
+      - "3000:3000"
+    # --- SELESAI TAMBAHAN ---
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`pbb.tabanankab.go.id`)"
@@ -51,6 +64,38 @@ services:
     depends_on:
       - backend
 
+  # --- TAMBAHAN BARU DARI SAYA: Menambahkan service database PostgreSQL ---
+  db:
+    image: postgres:15
+    container_name: sm-pbb-db-1
+    # Mengambil variabel (user, password, dbname) dari file .env yang sama dengan backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    networks:
+      - app-network
+  # --- SELESAI TAMBAHAN ---
+
+  # --- TAMBAHAN BARU DARI SAYA: Menambahkan Adminer untuk melihat database di browser ---
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080" # Adminer akan bisa diakses di http://localhost:8080
+    networks:
+      - app-network
+    depends_on:
+      - db
+  # --- SELESAI TAMBAHAN ---
+
 networks:
   app-network:
     driver: bridge
+
+# --- TAMBAHAN BARU DARI SAYA: Mendefinisikan volume untuk menyimpan data database secara permanen ---
+volumes:
+  postgres_data:
+# --- SELESAI TAMBAHAN ---
